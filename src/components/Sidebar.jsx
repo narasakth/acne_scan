@@ -1,24 +1,30 @@
 /**
- * Sidebar.jsx - Left Navigation Sidebar
+ * Sidebar.jsx - Responsive Left Navigation Sidebar
+ * Desktop: Fixed sidebar | Mobile: Slide-in overlay
  */
 
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ConfirmModal from './ConfirmModal';
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen, onClose }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { signOut } = useAuth();
+    const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
 
     const isActive = (path) => location.pathname === path;
 
     const handleLogout = async () => {
-        if (window.confirm('ต้องการออกจากระบบหรือไม่?')) {
+        setShowLogoutConfirm(false);
+        await signOut();
+        navigate('/login');
+    };
 
-            await signOut();
-            window.location.href = '/login';
-        }
+    const handleNavClick = () => {
+        // Close sidebar on mobile after navigation
+        if (onClose) onClose();
     };
 
     const menuItems = [
@@ -45,105 +51,84 @@ const Sidebar = () => {
     ];
 
     return (
-        <aside style={{
-            width: '240px',
-            minHeight: '100vh',
-            background: '#fff',
-            borderRight: '1px solid #e5e7eb',
-            padding: '24px 16px',
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'fixed',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            zIndex: 50
-        }}>
-            {/* Logo */}
-            <Link to="/" style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                textDecoration: 'none',
-                marginBottom: '40px',
-                padding: '0 8px'
-            }}>
-                <div style={{
-                    width: '36px',
-                    height: '36px',
-                    background: '#2563eb',
-                    borderRadius: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontWeight: 'bold',
-                    fontSize: '14px'
-                }}>
-                    AC
-                </div>
-                <span style={{
-                    fontSize: '18px',
-                    fontWeight: '700',
-                    color: '#111'
-                }}>
-                    AcneScan
-                </span>
-            </Link>
+        <>
+            {/* Mobile overlay backdrop */}
+            {isOpen && (
+                <div
+                    className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+                    onClick={onClose}
+                />
+            )}
 
-            {/* Navigation */}
-            <nav style={{ flex: 1 }}>
-                {menuItems.map((item) => {
-                    const active = isActive(item.path);
-                    return (
-                        <Link
-                            key={item.path}
-                            to={item.path}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '12px',
-                                padding: '12px 16px',
-                                borderRadius: '8px',
-                                textDecoration: 'none',
-                                color: active ? '#2563eb' : '#4b5563',
-                                marginBottom: '4px',
-                                background: active ? '#eff6ff' : 'transparent',
-                                fontWeight: active ? '500' : '400',
-                                fontSize: '15px',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            <span style={{ display: 'flex' }}>{item.icon}</span>
-                            {item.label}
-                        </Link>
-                    );
-                })}
-            </nav>
+            {/* Sidebar */}
+            <aside className={`
+                fixed left-0 top-0 bottom-0 z-50
+                w-60 bg-white border-r border-gray-200
+                flex flex-col p-6
+                transition-transform duration-300 ease-in-out
+                lg:translate-x-0
+                ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+            `}>
+                {/* Logo */}
+                <Link
+                    to="/"
+                    onClick={handleNavClick}
+                    className="flex items-center gap-3 no-underline mb-10 px-2"
+                >
+                    <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
+                        AC
+                    </div>
+                    <span className="text-lg font-bold text-gray-900">
+                        AcneScan
+                    </span>
+                </Link>
 
-            {/* Logout */}
-            <button
-                onClick={handleLogout}
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    borderRadius: '8px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#ef4444',
-                    fontSize: '15px',
-                    cursor: 'pointer',
-                    width: '100%',
-                    textAlign: 'left',
-                    marginTop: 'auto'
-                }}
-            >
-                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                ออกจากระบบ
-            </button>
-        </aside>
+                {/* Navigation */}
+                <nav className="flex-1">
+                    {menuItems.map((item) => {
+                        const active = isActive(item.path);
+                        return (
+                            <Link
+                                key={item.path}
+                                to={item.path}
+                                onClick={handleNavClick}
+                                className={`
+                                    flex items-center gap-3 px-4 py-3 rounded-lg no-underline mb-1
+                                    text-[15px] transition-all duration-200
+                                    ${active
+                                        ? 'text-blue-600 bg-blue-50 font-medium'
+                                        : 'text-gray-600 hover:bg-gray-50 font-normal'
+                                    }
+                                `}
+                            >
+                                <span className="flex">{item.icon}</span>
+                                {item.label}
+                            </Link>
+                        );
+                    })}
+                </nav>
+
+                {/* Logout */}
+                <button
+                    onClick={() => setShowLogoutConfirm(true)}
+                    className="flex items-center gap-3 px-4 py-3 rounded-lg bg-transparent border-none text-red-500 text-[15px] cursor-pointer w-full text-left mt-auto hover:bg-red-50 transition-colors"
+                >
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    ออกจากระบบ
+                </button>
+            </aside>
+
+            {/* Logout Confirmation Modal */}
+            <ConfirmModal
+                isOpen={showLogoutConfirm}
+                title="ออกจากระบบ"
+                message="ต้องการออกจากระบบหรือไม่?"
+                confirmText="ออกจากระบบ"
+                danger
+                onConfirm={handleLogout}
+                onCancel={() => setShowLogoutConfirm(false)}
+            />
+        </>
     );
 };
 

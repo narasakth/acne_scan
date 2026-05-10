@@ -1,11 +1,13 @@
 /**
- * HomePage.jsx - Dashboard with Sidebar Layout
+ * HomePage.jsx - Dashboard with responsive layout
  */
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getRecentAnalyses, getStatistics, getHistory } from '../services/historyService';
+import { getHistory, getStatistics } from '../services/historyService';
+import StatCard from '../components/StatCard';
+import { getTrendInfo, getSeverityBadge } from '../utils/helpers';
 
 const HomePage = () => {
     const navigate = useNavigate();
@@ -20,12 +22,12 @@ const HomePage = () => {
 
     const loadData = async () => {
         try {
-            const recentAnalysis = await getRecentAnalyses(5);
-            const history = await getHistory(); // Get full history for accurate stats
+            // Single call to getHistory() — avoids duplicate API calls
+            const history = await getHistory();
             const statistics = await getStatistics(history);
 
             setStats(statistics);
-            setRecentScans(recentAnalysis);
+            setRecentScans(history.slice(0, 5));
         } catch (error) {
             console.error('Error:', error);
         } finally {
@@ -33,66 +35,22 @@ const HomePage = () => {
         }
     };
 
-    const getTrend = () => {
-        if (stats.trend === 'improving') return { text: 'ดีขึ้น', color: '#16a34a', icon: <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg> };
-        if (stats.trend === 'worsening') return { text: 'แย่ลง', color: '#dc2626', icon: <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg> };
-        return { text: 'คงที่', color: '#ca8a04', icon: <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14" /></svg> };
-    };
-
-    const trend = getTrend();
-
-    const StatCard = ({ icon, label, value, subValue, subColor }) => (
-        <div style={{
-            background: '#fff',
-            borderRadius: '12px',
-            padding: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '20px',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-            border: '1px solid #e5e7eb',
-            flex: 1
-        }}>
-            <div style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '12px',
-                background: '#eff6ff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#3b82f6'
-            }}>
-                {icon}
-            </div>
-            <div>
-                <p style={{ fontSize: '14px', color: '#6b7280', margin: 0 }}>{label}</p>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '4px' }}>
-                    <span style={{ fontSize: '32px', fontWeight: '700', color: '#111' }}>{value}</span>
-                    {subValue && (
-                        <span style={{ fontSize: '16px', fontWeight: '600', color: subColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            {subValue} <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ transform: 'rotate(-45deg)' }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                        </span>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
+    const trend = getTrendInfo(stats.trend);
 
     return (
         <div>
             {/* Header */}
-            <div style={{ marginBottom: '32px' }}>
-                <h1 style={{ fontSize: '30px', fontWeight: '800', color: '#111', margin: 0 }}>
+            <div className="mb-8">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900">
                     สวัสดี, {user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'คุณ'}
                 </h1>
-                <p style={{ color: '#6b7280', marginTop: '4px', fontSize: '16px' }}>
+                <p className="text-gray-500 mt-1 text-base">
                     ยินดีต้อนรับกลับสู่ AcneScan
                 </p>
             </div>
 
             {/* Stats & Action Row */}
-            <div style={{ display: 'flex', gap: '24px', marginBottom: '40px' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 mb-8 sm:mb-10">
                 <StatCard
                     icon={<svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
                     label="การสแกนทั้งหมด"
@@ -107,128 +65,78 @@ const HomePage = () => {
                     icon={<svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
                     label="แนวโน้ม"
                     value={loading ? '...' : trend.text}
-                    subValue={!loading && trend.text}
+                    subValue={!loading ? trend.text : undefined}
                     subColor={trend.color}
                 />
 
                 {/* Action Button */}
                 <button
                     onClick={() => navigate('/camera')}
-                    style={{
-                        background: '#3b82f6',
-                        borderRadius: '12px',
-                        padding: '24px 32px',
-                        border: 'none',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'center',
-                        minWidth: '220px',
-                        boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.5)'
-                    }}
+                    className="bg-blue-500 rounded-xl p-6 border-none cursor-pointer text-left flex flex-col justify-center shadow-lg shadow-blue-500/30 hover:bg-blue-600 transition-colors"
                 >
-                    <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.9)', margin: 0 }}>เริ่มต้น</p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <p style={{ fontSize: '24px', fontWeight: '700', color: '#fff', margin: '4px 0 0' }}>
+                    <p className="text-sm text-white/90 m-0">เริ่มต้น</p>
+                    <div className="flex items-center gap-2">
+                        <p className="text-2xl font-bold text-white mt-1 mb-0">
                             วิเคราะห์ใหม่
                         </p>
-                        <span style={{ color: '#fff', fontSize: '24px', marginTop: '4px' }}>→</span>
+                        <span className="text-white text-2xl mt-1">→</span>
                     </div>
                 </button>
             </div>
 
             {/* Content Grid */}
-            <div style={{ display: 'flex', gap: '32px', alignItems: 'flex-start' }}>
+            <div className="flex flex-col xl:flex-row gap-6 xl:gap-8 items-start">
                 {/* History Table */}
-                <div style={{
-                    flex: 2,
-                    background: '#fff',
-                    borderRadius: '16px',
-                    padding: '32px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                    border: '1px solid #e5e7eb'
-                }}>
-                    <div style={{
-                        marginBottom: '24px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                    }}>
-                        <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#111', margin: 0 }}>
+                <div className="flex-[2] min-w-0 w-full bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-200">
+                    <div className="mb-6 flex justify-between items-center">
+                        <h2 className="text-xl font-bold text-gray-900">
                             ประวัติล่าสุด
                         </h2>
                         <button
                             onClick={() => navigate('/history')}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#3b82f6',
-                                fontSize: '15px',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                            }}
+                            className="bg-transparent border-none text-blue-500 text-[15px] font-semibold cursor-pointer flex items-center gap-1 hover:underline"
                         >
                             ดูทั้งหมด →
                         </button>
                     </div>
 
                     {loading ? (
-                        <div style={{ padding: '60px', textAlign: 'center', color: '#6b7280' }}>
+                        <div className="py-16 text-center text-gray-500">
                             กำลังโหลด...
                         </div>
                     ) : recentScans.length > 0 ? (
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                    <th style={{ padding: '16px 0', textAlign: 'left', fontSize: '14px', fontWeight: '500', color: '#6b7280' }}>ระดับ</th>
-                                    <th style={{ padding: '16px 0', textAlign: 'left', fontSize: '14px', fontWeight: '500', color: '#6b7280' }}>วันที่</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {recentScans.map((scan, i) => (
-                                    <tr key={i} style={{ borderBottom: i < recentScans.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
-                                        <td style={{ padding: '24px 0' }}>
-                                            <span style={{
-                                                display: 'inline-block',
-                                                background: scan.severityLevel <= 2 ? '#dcfce7' : scan.severityLevel <= 3 ? '#fef3c7' : '#fee2e2',
-                                                color: scan.severityLevel <= 2 ? '#166534' : scan.severityLevel <= 3 ? '#92400e' : '#991b1b',
-                                                padding: '6px 16px',
-                                                borderRadius: '20px',
-                                                fontSize: '14px',
-                                                fontWeight: '600'
-                                            }}>
-                                                ระดับ {scan.severityLevel}
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: '24px 0', color: '#6b7280', fontSize: '15px' }}>
-                                            {new Date(scan.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                        </td>
-
+                        <div className="overflow-x-auto">
+                            <table className="w-full border-collapse">
+                                <thead>
+                                    <tr className="border-b border-gray-100">
+                                        <th className="py-4 text-left text-sm font-medium text-gray-500">ระดับ</th>
+                                        <th className="py-4 text-left text-sm font-medium text-gray-500">วันที่</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {recentScans.map((scan, i) => (
+                                        <tr key={i} className={i < recentScans.length - 1 ? 'border-b border-gray-100' : ''}>
+                                            <td className="py-6">
+                                                <span className={`inline-block px-4 py-1.5 rounded-full text-sm font-semibold ${getSeverityBadge(scan.severityLevel)}`}>
+                                                    ระดับ {scan.severityLevel}
+                                                </span>
+                                            </td>
+                                            <td className="py-6 text-gray-500 text-[15px]">
+                                                {new Date(scan.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     ) : (
-                        <div style={{ padding: '60px', textAlign: 'center' }}>
-                            <p style={{ color: '#6b7280', marginBottom: '20px', fontSize: '15px' }}>
+                        <div className="py-16 text-center">
+                            <p className="text-gray-500 mb-5 text-[15px]">
                                 ยังไม่มีประวัติการวิเคราะห์
                             </p>
                             <button
                                 onClick={() => navigate('/camera')}
-                                style={{
-                                    background: '#2563eb',
-                                    color: '#fff',
-                                    padding: '12px 24px',
-                                    borderRadius: '10px',
-                                    border: 'none',
-                                    fontSize: '14px',
-                                    fontWeight: '500',
-                                    cursor: 'pointer'
-                                }}
+                                className="bg-blue-600 text-white py-3 px-6 rounded-xl border-none text-sm font-medium cursor-pointer hover:bg-blue-700 transition-colors"
                             >
                                 เริ่มวิเคราะห์
                             </button>
@@ -237,18 +145,11 @@ const HomePage = () => {
                 </div>
 
                 {/* Tips Card */}
-                <div style={{
-                    width: '320px',
-                    background: '#fff',
-                    borderRadius: '16px',
-                    padding: '32px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                    border: '1px solid #e5e7eb'
-                }}>
-                    <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#111', margin: '0 0 24px' }}>
+                <div className="w-full xl:w-80 bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-200">
+                    <h3 className="text-xl font-bold text-gray-900 mb-6">
                         เคล็ดลับดูแลผิว
                     </h3>
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    <ul className="list-none p-0 m-0">
                         {[
                             'ดื่มน้ำ 8 แก้ว/วัน',
                             'นอน 7-8 ชม.',
@@ -256,16 +157,8 @@ const HomePage = () => {
                             'ใช้ครีมกันแดด',
                             'อย่าแตะหน้าบ่อย'
                         ].map((tip, i) => (
-                            <li key={i} style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '12px',
-                                marginBottom: '20px',
-                                fontSize: '15px',
-                                color: '#111',
-                                fontWeight: '500'
-                            }}>
-                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3b82f6', flexShrink: 0 }}></span>
+                            <li key={i} className="flex items-center gap-3 mb-5 text-[15px] text-gray-900 font-medium">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>
                                 <span>{tip}</span>
                             </li>
                         ))}

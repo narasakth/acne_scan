@@ -2,7 +2,7 @@
  * AuthContext.jsx - Authentication context for React
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
     supabase,
     signIn as supabaseSignIn,
@@ -44,7 +44,6 @@ export const AuthProvider = ({ children }) => {
 
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            console.log('Auth event:', event);
             setSession(session);
             setUser(session?.user || null);
             setLoading(false);
@@ -56,16 +55,12 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const signIn = async (email, password) => {
-        setLoading(true);
         const result = await supabaseSignIn(email, password);
-        setLoading(false);
         return result;
     };
 
     const signUp = async (email, password, displayName) => {
-        setLoading(true);
         const result = await supabaseSignUp(email, password, displayName);
-        setLoading(false);
         return result;
     };
 
@@ -81,11 +76,23 @@ export const AuthProvider = ({ children }) => {
     };
 
     const signInWithGoogle = async () => {
-        setLoading(true);
         const result = await supabaseSignInWithGoogle();
-        setLoading(false);
         return result;
     };
+
+    /**
+     * Refresh user data from Supabase (used after profile updates)
+     */
+    const refreshUser = useCallback(async () => {
+        try {
+            const { data: { user: freshUser } } = await supabase.auth.getUser();
+            if (freshUser) {
+                setUser(freshUser);
+            }
+        } catch (error) {
+            console.error('Error refreshing user:', error);
+        }
+    }, []);
 
     const value = {
         user,
@@ -95,6 +102,7 @@ export const AuthProvider = ({ children }) => {
         signUp,
         signOut,
         signInWithGoogle,
+        refreshUser,
         isAuthenticated: !!user,
     };
 

@@ -5,6 +5,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider } from './components/Toast';
 
 // Components
 import Layout from './components/Layout';
@@ -23,10 +24,10 @@ const PublicRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-bg-main">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mx-auto mb-4"></div>
-          <p className="text-text-secondary">กำลังโหลด...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-500">กำลังโหลด...</p>
         </div>
       </div>
     );
@@ -76,9 +77,11 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
-          <AppRoutes />
-        </div>
+        <ToastProvider>
+          <div className="min-h-screen bg-slate-50">
+            <AppRoutes />
+          </div>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );

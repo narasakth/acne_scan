@@ -1,16 +1,18 @@
 /**
- * LoginPage.jsx - Clean Desktop Login
+ * LoginPage.jsx - Responsive Desktop Login
  */
 
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { resetPassword } from '../services/supabaseService';
+import { useToast } from '../components/Toast';
 
 const LoginPage = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { signIn, signUp, signInWithGoogle, loading } = useAuth();
+    const { signIn, signUp, signInWithGoogle } = useAuth();
+    const toast = useToast();
 
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState('');
@@ -18,184 +20,176 @@ const LoginPage = () => {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [displayName, setDisplayName] = useState('');
     const [error, setError] = useState('');
+    const [submitting, setSubmitting] = useState(false);
 
     const from = location.state?.from?.pathname || '/';
+
+    // Map Supabase error to Thai message
+    const getErrorMessage = (error) => {
+        if (!error) return 'เกิดข้อผิดพลาด';
+        const msg = error.toLowerCase();
+        if (msg.includes('invalid login credentials')) return 'ข้อมูลเข้าสู่ระบบไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
+        if (msg.includes('email not confirmed')) return 'กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ';
+        if (msg.includes('user already registered')) return 'อีเมลนี้ถูกใช้งานแล้ว';
+        if (msg.includes('password')) return 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่';
+        if (msg.includes('rate limit')) return 'ลองเข้าสู่ระบบบ่อยเกินไป กรุณารอสักครู่';
+        if (msg.includes('network')) return 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ต';
+        return error;
+    };
+
+    const validateEmail = (email) => {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
 
         if (!email || !password) return setError('กรุณากรอกข้อมูลให้ครบ');
+        if (!validateEmail(email)) return setError('รูปแบบอีเมลไม่ถูกต้อง');
+
+        setSubmitting(true);
 
         if (isLogin) {
             const result = await signIn(email, password);
-            if (result.success) navigate(from, { replace: true });
-            else setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+            if (result.success) {
+                navigate(from, { replace: true });
+            } else {
+                setError(getErrorMessage(result.error));
+                setSubmitting(false);
+            }
         } else {
-            if (password !== confirmPassword) return setError('รหัสผ่านไม่ตรงกัน');
-            if (password.length < 6) return setError('รหัสผ่านต้องมีอย่างน้อย 6 ตัว');
+            if (password.length < 6) { setSubmitting(false); return setError('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); }
+            if (password !== confirmPassword) { setSubmitting(false); return setError('รหัสผ่านไม่ตรงกัน'); }
 
             const result = await signUp(email, password, displayName);
             if (result.success) {
-                alert('สมัครสำเร็จ! กรุณายืนยันอีเมล');
+                toast.success('สมัครสำเร็จ! กรุณายืนยันอีเมล');
                 setIsLogin(true);
-            } else setError(result.error || 'เกิดข้อผิดพลาด');
+            } else {
+                setError(getErrorMessage(result.error));
+            }
+            setSubmitting(false);
         }
     };
 
     const handleForgot = async () => {
         if (!email) return setError('กรอกอีเมลก่อน');
         const result = await resetPassword(email);
-        if (result.success) alert('ส่งลิงก์ไปยังอีเมลแล้ว');
-        else setError('เกิดข้อผิดพลาด');
+        if (result.success) toast.success('ส่งลิงก์รีเซ็ตรหัสผ่านไปยังอีเมลแล้ว');
+        else toast.error('เกิดข้อผิดพลาดในการส่งอีเมล');
     };
 
     return (
-        <div style={{ minHeight: '100vh', display: 'flex' }}>
+        <div className="min-h-screen flex flex-col lg:flex-row">
             {/* Left - Branding */}
-            <div style={{
-                flex: 1,
-                background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                padding: '80px'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '30px' }}>
-                    <div style={{ width: '50px', height: '50px', background: 'rgba(255,255,255,0.2)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold', fontSize: '20px' }}>
+            <div className="flex-1 bg-gradient-to-br from-blue-600 to-indigo-600 flex flex-col justify-center p-10 sm:p-16 lg:p-20">
+                <div className="flex items-center gap-3 mb-8">
+                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-white font-bold text-xl">
                         AC
                     </div>
-                    <span style={{ fontSize: '24px', fontWeight: '700', color: '#fff' }}>AcneScan</span>
+                    <span className="text-2xl font-bold text-white">AcneScan</span>
                 </div>
-                <h1 style={{ fontSize: '40px', fontWeight: '700', color: '#fff', margin: '0 0 20px', lineHeight: 1.3 }}>
+                <h1 className="text-3xl sm:text-4xl lg:text-[40px] font-bold text-white leading-tight mb-5">
                     วิเคราะห์สภาพผิว<br />ด้วย AI
                 </h1>
-                <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '18px', lineHeight: 1.6 }}>
+                <p className="text-white/80 text-lg leading-relaxed">
                     ติดตามและดูแลสุขภาพผิวของคุณได้ง่ายๆ<br />
                     ด้วยเทคโนโลยี AI วิเคราะห์ภาพใบหน้า
                 </p>
             </div>
 
             {/* Right - Form */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '80px', background: '#fff' }}>
-                <div style={{ width: '100%', maxWidth: '400px' }}>
-                    <h2 style={{ fontSize: '28px', fontWeight: '700', color: '#111', margin: '0 0 8px' }}>
+            <div className="flex-1 flex items-center justify-center p-8 sm:p-16 lg:p-20 bg-white">
+                <div className="w-full max-w-[400px]">
+                    <h2 className="text-[28px] font-bold text-gray-900 mb-2">
                         {isLogin ? 'เข้าสู่ระบบ' : 'สร้างบัญชีใหม่'}
                     </h2>
-                    <p style={{ color: '#6b7280', fontSize: '15px', margin: '0 0 32px' }}>
+                    <p className="text-gray-500 text-[15px] mb-8">
                         {isLogin ? 'ยินดีต้อนรับกลับ!' : 'เริ่มต้นใช้งาน AcneScan'}
                     </p>
 
                     <form onSubmit={handleSubmit}>
                         {!isLogin && (
-                            <div style={{ marginBottom: '20px' }}>
-                                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>ชื่อ (ไม่บังคับ)</label>
+                            <div className="mb-5">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">ชื่อ (ไม่บังคับ)</label>
                                 <input
                                     type="text"
                                     value={displayName}
                                     onChange={(e) => setDisplayName(e.target.value)}
                                     placeholder="ชื่อของคุณ"
-                                    style={{ width: '100%', padding: '14px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '15px', boxSizing: 'border-box' }}
+                                    className="w-full py-3.5 px-4 border border-gray-200 rounded-lg text-[15px] focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                                 />
                             </div>
                         )}
 
-                        <div style={{ marginBottom: '20px' }}>
-                            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>อีเมล</label>
+                        <div className="mb-5">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">อีเมล</label>
                             <input
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder="example@email.com"
-                                style={{ width: '100%', padding: '14px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '15px', boxSizing: 'border-box' }}
+                                className="w-full py-3.5 px-4 border border-gray-200 rounded-lg text-[15px] focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                             />
                         </div>
 
-                        <div style={{ marginBottom: '20px' }}>
-                            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>รหัสผ่าน</label>
+                        <div className="mb-5">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">รหัสผ่าน</label>
                             <input
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••"
-                                style={{ width: '100%', padding: '14px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '15px', boxSizing: 'border-box' }}
+                                className="w-full py-3.5 px-4 border border-gray-200 rounded-lg text-[15px] focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                             />
                         </div>
 
                         {!isLogin && (
-                            <div style={{ marginBottom: '20px' }}>
-                                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>ยืนยันรหัสผ่าน</label>
+                            <div className="mb-5">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">ยืนยันรหัสผ่าน</label>
                                 <input
                                     type="password"
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
                                     placeholder="••••••••"
-                                    style={{ width: '100%', padding: '14px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '15px', boxSizing: 'border-box' }}
+                                    className="w-full py-3.5 px-4 border border-gray-200 rounded-lg text-[15px] focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                                 />
                             </div>
                         )}
 
                         {isLogin && (
-                            <div style={{ textAlign: 'right', marginBottom: '20px' }}>
-                                <button type="button" onClick={handleForgot} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '14px', cursor: 'pointer' }}>
+                            <div className="text-right mb-5">
+                                <button type="button" onClick={handleForgot} className="bg-transparent border-none text-blue-600 text-sm cursor-pointer hover:underline">
                                     ลืมรหัสผ่าน?
                                 </button>
                             </div>
                         )}
 
                         {error && (
-                            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '12px 16px', color: '#dc2626', fontSize: '14px', marginBottom: '20px' }}>
+                            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-600 text-sm mb-5">
                                 {error}
                             </div>
                         )}
 
                         <button
                             type="submit"
-                            disabled={loading}
-                            style={{
-                                width: '100%',
-                                padding: '14px',
-                                background: loading ? '#9ca3af' : '#2563eb',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '8px',
-                                fontSize: '16px',
-                                fontWeight: '600',
-                                cursor: loading ? 'default' : 'pointer',
-                                marginBottom: '16px'
-                            }}
+                            disabled={submitting}
+                            className="w-full py-3.5 bg-blue-600 text-white border-none rounded-lg text-base font-semibold cursor-pointer mb-4 hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-default"
                         >
-                            {loading ? '...' : (isLogin ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก')}
+                            {submitting ? '...' : (isLogin ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก')}
                         </button>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', margin: '20px 0' }}>
-                            <div style={{ flex: 1, height: '1px', background: '#e5e7eb' }} />
-                            <span style={{ color: '#9ca3af', fontSize: '14px' }}>หรือ</span>
-                            <div style={{ flex: 1, height: '1px', background: '#e5e7eb' }} />
+                        <div className="flex items-center gap-4 my-5">
+                            <div className="flex-1 h-px bg-gray-200" />
+                            <span className="text-gray-400 text-sm">หรือ</span>
+                            <div className="flex-1 h-px bg-gray-200" />
                         </div>
 
                         <button
                             type="button"
                             onClick={() => signInWithGoogle()}
-                            style={{
-                                width: '100%',
-                                padding: '12px 16px',
-                                background: '#fff',
-                                color: '#374151',
-                                border: '1px solid #e5e7eb',
-                                borderRadius: '8px',
-                                fontSize: '15px',
-                                fontWeight: '500',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '12px',
-                                transition: 'all 0.2s',
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                            }}
-                            onMouseOver={(e) => e.currentTarget.style.background = '#f9fafb'}
-                            onMouseOut={(e) => e.currentTarget.style.background = '#fff'}
+                            className="w-full py-3 px-4 bg-white text-gray-700 border border-gray-200 rounded-lg text-[15px] font-medium cursor-pointer flex items-center justify-center gap-3 shadow-sm hover:bg-gray-50 transition-colors"
                         >
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M23.52 12.29c0-.85-.08-1.68-.23-2.48H12v4.7h6.45c-.28 1.48-1.12 2.73-2.39 3.58v2.98h3.87c2.26-2.09 3.57-5.17 3.57-8.78z" fill="#4285F4" />
@@ -207,11 +201,11 @@ const LoginPage = () => {
                         </button>
                     </form>
 
-                    <p style={{ textAlign: 'center', marginTop: '24px', color: '#6b7280', fontSize: '14px' }}>
+                    <p className="text-center mt-6 text-gray-500 text-sm">
                         {isLogin ? 'ยังไม่มีบัญชี?' : 'มีบัญชีแล้ว?'}
                         <button
                             onClick={() => { setIsLogin(!isLogin); setError(''); }}
-                            style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: '600', cursor: 'pointer', marginLeft: '6px' }}
+                            className="bg-transparent border-none text-blue-600 font-semibold cursor-pointer ml-1.5"
                         >
                             {isLogin ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ'}
                         </button>

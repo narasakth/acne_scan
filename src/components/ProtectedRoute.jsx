@@ -12,14 +12,11 @@ const ProtectedRoute = ({ children }) => {
 
     if (loading) {
         return (
-            <div style={{
-                minHeight: '100vh',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: '#f8fafc'
-            }}>
-                <div style={{ fontSize: '16px', color: '#6b7280' }}>กำลังโหลด...</div>
+            <div className="min-h-screen flex items-center justify-center bg-slate-50">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+                    <p className="text-gray-500">กำลังโหลด...</p>
+                </div>
             </div>
         );
     }

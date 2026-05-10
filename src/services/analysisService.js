@@ -2,9 +2,10 @@
  * analysisService.js - Service for analyzing images with Local Backend
  */
 
-// Configuration
-const API_URL = "http://localhost:8000/analyze";
-const API_URL_MULTI = "http://localhost:8000/analyze-multi";
+// Configuration from environment
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = `${API_BASE}/analyze`;
+const API_URL_MULTI = `${API_BASE}/analyze-multi`;
 
 /**
  * Analyze an image using Local Backend (single image)
@@ -58,7 +59,6 @@ export const analyzeMultipleImages = async (frontImage, leftImage, rightImage) =
         }
 
         const data = await response.json();
-        console.log("Multi-image analysis result:", data);
         return processResult(data);
 
     } catch (error) {
@@ -71,41 +71,36 @@ export const analyzeMultipleImages = async (frontImage, leftImage, rightImage) =
  * Process the raw result into our app's format
  */
 const processResult = (data) => {
-    let inflamed = 0;
-    let clogged = 0;
-    let scars = 0;
+    let severityLevel = 1;
 
-    if (data.predictions) {
+    if (data.predictions && data.predictions.length > 0) {
+        let maxLevel = 1;
         data.predictions.forEach(pred => {
             const label = pred.class.toLowerCase();
-            if (label.includes('inflamed') || label.includes('pustule') || label.includes('papule')) inflamed++;
-            else if (label.includes('clogged') || label.includes('comedone') || label.includes('whitehead') || label.includes('blackhead')) clogged++;
-            else if (label.includes('scar')) scars++;
-            else inflamed++; // Default fallback
+            let level = 1;
+            if (label === 'moderate') level = 2;
+            else if (label === 'severe') level = 3;
+            else if (label === 'very severe') level = 4;
+            else if (label === 'mild') level = 1;
+            
+            if (level > maxLevel) {
+                maxLevel = level;
+            }
         });
+        severityLevel = maxLevel;
     }
 
-    const totalSpots = inflamed + clogged + scars;
-
-    // Determine severity
-    let severityLevel = 1;
-    if (totalSpots > 20) severityLevel = 5;
-    else if (totalSpots > 15) severityLevel = 4;
-    else if (totalSpots > 10) severityLevel = 3;
-    else if (totalSpots > 5) severityLevel = 2;
-
-    const severityLabel = ['ปกติ', 'เล็กน้อย', 'ปานกลาง', 'รุนแรง', 'รุนแรงมาก'][severityLevel - 1];
+    const severityLabel = ['เล็กน้อย', 'ปานกลาง', 'รุนแรง', 'รุนแรงมาก'][severityLevel - 1];
 
     return {
         severityLevel,
         severityLabel,
-        totalSpots,
+        totalSpots: 0,
         spots: {
-            inflamed,
-            clogged,
-            scars
+            inflamed: 0,
+            clogged: 0,
+            scars: 0
         },
         imagesProcessed: data.images_processed || 1
     };
 };
-

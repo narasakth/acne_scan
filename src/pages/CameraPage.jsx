@@ -7,37 +7,28 @@ import { useNavigate } from 'react-router-dom';
 import { saveAnalysis } from '../services/historyService';
 import { uploadImage } from '../services/supabaseService';
 import { analyzeMultipleImages } from '../services/analysisService';
+import { useToast } from '../components/Toast';
+import { getLevelColor } from '../utils/helpers';
 
 const CameraPage = () => {
     const navigate = useNavigate();
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
+    const toast = useToast();
 
-    // Steps: 'intro', 'capture-front', 'capture-left', 'capture-right', 'analyzing', 'result'
     const [step, setStep] = useState('intro');
-
-    // Images
-    const [images, setImages] = useState({
-        front: null,
-        left: null,
-        right: null
-    });
-    const [previews, setPreviews] = useState({
-        front: null,
-        left: null,
-        right: null
-    });
-
+    const [images, setImages] = useState({ front: null, left: null, right: null });
+    const [previews, setPreviews] = useState({ front: null, left: null, right: null });
     const [stream, setStream] = useState(null);
     const [result, setResult] = useState(null);
     const [error, setError] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
 
-    // Stop camera on unmount
     useEffect(() => {
         return () => stopCamera();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Effect to attach stream to video element whenever steps change or stream changes
     useEffect(() => {
         if (stream && videoRef.current && ['capture-front', 'capture-left', 'capture-right'].includes(step)) {
             videoRef.current.srcObject = stream;
@@ -48,16 +39,11 @@ const CameraPage = () => {
         try {
             setError('');
             const mediaStream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    facingMode: 'user',
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                }
+                video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
             });
             setStream(mediaStream);
-            setStep('capture-front'); // Trigger layout change, which mounts videoRef
+            setStep('capture-front');
         } catch (err) {
-            console.error("Camera error:", err);
             setError("ไม่สามารถเข้าถึงกล้องได้ กรุณาตรวจสอบสิทธิ์การใช้งาน");
         }
     };
@@ -75,7 +61,6 @@ const CameraPage = () => {
             const canvas = canvasRef.current;
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
@@ -83,15 +68,12 @@ const CameraPage = () => {
                 if (blob) {
                     const file = new File([blob], `${side}.jpg`, { type: "image/jpeg" });
                     const previewUrl = URL.createObjectURL(blob);
-
                     setImages(prev => ({ ...prev, [side]: file }));
                     setPreviews(prev => ({ ...prev, [side]: previewUrl }));
 
-                    // Move to next step
                     if (side === 'front') setStep('capture-left');
                     else if (side === 'left') setStep('capture-right');
                     else if (side === 'right') {
-                        // All images captured, now analyze with all 3
                         handleAnalyze({ front: images.front, left: images.left, right: file });
                     }
                 }
@@ -102,96 +84,56 @@ const CameraPage = () => {
     const handleAnalyze = async (allImages) => {
         stopCamera();
         setStep('analyzing');
-
         try {
-            // Send all 3 images for analysis
-            const analysisResult = await analyzeMultipleImages(
-                allImages.front,
-                allImages.left,
-                allImages.right
-            );
+            const analysisResult = await analyzeMultipleImages(allImages.front, allImages.left, allImages.right);
             setResult(analysisResult);
             setStep('result');
         } catch (err) {
-            console.error(err);
-            setError('เกิดข้อผิดพลาดในการวิเคราะห์');
+            toast.error('เกิดข้อผิดพลาดในการวิเคราะห์');
             setStep('intro');
         }
     };
 
     const saveResult = async () => {
+        if (isSaving) return;
+        setIsSaving(true);
         try {
-            // Upload images
-            let frontUrl = null;
-            let leftUrl = null;
-            let rightUrl = null;
+            let frontUrl = null, leftUrl = null, rightUrl = null;
+            if (images.front) frontUrl = await uploadImage(images.front, `front_${Date.now()}.jpg`);
+            if (images.left) leftUrl = await uploadImage(images.left, `left_${Date.now()}.jpg`);
+            if (images.right) rightUrl = await uploadImage(images.right, `right_${Date.now()}.jpg`);
 
-            if (images.front) {
-                frontUrl = await uploadImage(images.front, `front_${Date.now()}.jpg`);
-            }
-            if (images.left) {
-                leftUrl = await uploadImage(images.left, `left_${Date.now()}.jpg`);
-            }
-            if (images.right) {
-                rightUrl = await uploadImage(images.right, `right_${Date.now()}.jpg`);
-            }
-
-            const analysisWithImages = {
-                ...result,
-                leftImageUrl: leftUrl,
-                rightImageUrl: rightUrl
-            };
-
+            const analysisWithImages = { ...result, leftImageUrl: leftUrl, rightImageUrl: rightUrl };
             await saveAnalysis(analysisWithImages, frontUrl);
-            alert('บันทึกผลการวิเคราะห์เรียบร้อย');
+            toast.success('บันทึกผลการวิเคราะห์เรียบร้อย');
             navigate('/history');
         } catch (err) {
-            console.error(err);
-            alert('บันทึกไม่สำเร็จ');
+            toast.error('บันทึกไม่สำเร็จ');
+        } finally {
+            setIsSaving(false);
         }
-    };
-
-    const getLevelColor = (level) => {
-        const colors = { 1: '#16a34a', 2: '#84cc16', 3: '#eab308', 4: '#f97316', 5: '#dc2626' };
-        return colors[level] || '#6b7280';
     };
 
     const renderContent = () => {
         if (step === 'intro') {
             return (
-                <div style={{ textAlign: 'center', padding: '40px', background: '#fff', borderRadius: '16px', maxWidth: '600px', margin: '0 auto', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-                    <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'center' }}>
-                        <div style={{
-                            width: '80px',
-                            height: '80px',
-                            background: '#eff6ff',
-                            borderRadius: '50%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#3b82f6'
-                        }}>
+                <div className="text-center p-8 sm:p-10 bg-white rounded-2xl max-w-xl mx-auto shadow-lg animate-fadeIn">
+                    <div className="mb-6 flex justify-center">
+                        <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">
                             <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
                         </div>
                     </div>
-                    <h2 style={{ fontSize: '24px', fontWeight: '700', color: '#111', marginBottom: '16px' }}>
-                        พร้อมสำหรับการวิเคราะห์ผิวหรือยัง?
-                    </h2>
-                    <p style={{ color: '#6b7280', fontSize: '16px', lineHeight: '1.6', marginBottom: '32px' }}>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-4">พร้อมสำหรับการวิเคราะห์ผิวหรือยัง?</h2>
+                    <p className="text-gray-500 text-base leading-relaxed mb-8">
                         เราจะทำการถ่ายภาพใบหน้าของคุณ 3 มุม<br />
                         (หน้าตรง, ด้านซ้าย, ด้านขวา)<br />
                         เพื่อการวิเคราะห์ที่แม่นยำที่สุดด้วย AI
                     </p>
-                    <button
-                        onClick={startCamera}
-                        style={{ padding: '16px 32px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: '600', cursor: 'pointer' }}
-                    >
-                        เริ่มถ่ายภาพ
-                    </button>
-                    {error && <p style={{ color: '#dc2626', marginTop: '16px' }}>{error}</p>}
+                    <button onClick={startCamera} className="btn-primary text-lg px-8">เริ่มถ่ายภาพ</button>
+                    {error && <p className="text-red-600 mt-4">{error}</p>}
                 </div>
             );
         }
@@ -199,64 +141,33 @@ const CameraPage = () => {
         if (['capture-front', 'capture-left', 'capture-right'].includes(step)) {
             const currentSide = step.split('-')[1];
             const labels = { front: 'หน้าตรง', left: 'หันหน้าทางซ้าย', right: 'หันหน้าทางขวา' };
-            const instructions = {
-                front: 'มองตรงไปที่กล้อง',
-                left: 'หันหน้าไปทางขวาเล็กน้อย',
-                right: 'หันหน้าไปทางซ้ายเล็กน้อย'
-            };
+            const instructions = { front: 'มองตรงไปที่กล้อง', left: 'หันหน้าไปทางขวาเล็กน้อย', right: 'หันหน้าไปทางซ้ายเล็กน้อย' };
 
             return (
-                <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', gap: '32px', alignItems: 'center' }}>
-                    {/* Left: Camera View */}
-                    <div style={{ flex: 1 }}>
-                        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                            <h2 style={{ fontSize: '24px', fontWeight: 'bold' }}>ถ่ายภาพ{labels[currentSide]}</h2>
-                            <p style={{ color: '#6b7280' }}>{instructions[currentSide]}</p>
+                <div className="max-w-4xl mx-auto flex flex-col lg:flex-row gap-8 items-center">
+                    <div className="flex-1 w-full">
+                        <div className="text-center mb-5">
+                            <h2 className="text-2xl font-bold">ถ่ายภาพ{labels[currentSide]}</h2>
+                            <p className="text-gray-500">{instructions[currentSide]}</p>
                         </div>
-
-                        <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', background: '#000', borderRadius: '16px', overflow: 'hidden', marginBottom: '24px' }}>
-                            <video
-                                ref={videoRef}
-                                autoPlay
-                                playsInline
-                                muted
-                                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
-                            />
-
-                            {/* Guide Overlay */}
-                            <div style={{
-                                position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                                width: '280px', height: '380px',
-                                border: '2px dashed rgba(255,255,255,0.5)', borderRadius: '150px'
-                            }}></div>
+                        <div className="relative w-full aspect-[4/3] bg-black rounded-2xl overflow-hidden mb-6">
+                            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[280px] h-[380px] border-2 border-dashed border-white/50 rounded-[150px]" />
                         </div>
                     </div>
-
-                    {/* Right: Controls */}
-                    <div style={{ width: '200px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                        <div style={{ marginBottom: '24px', textAlign: 'center' }}>
-                            <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>ขั้นตอน</p>
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: step === 'capture-front' ? '#2563eb' : '#e5e7eb' }}></div>
-                                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: step === 'capture-left' ? '#2563eb' : '#e5e7eb' }}></div>
-                                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: step === 'capture-right' ? '#2563eb' : '#e5e7eb' }}></div>
+                    <div className="w-48 flex flex-col items-center justify-center">
+                        <div className="mb-6 text-center">
+                            <p className="text-sm text-gray-500 mb-2">ขั้นตอน</p>
+                            <div className="flex gap-2 justify-center">
+                                {['capture-front', 'capture-left', 'capture-right'].map(s => (
+                                    <div key={s} className={`w-3 h-3 rounded-full ${step === s ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                                ))}
                             </div>
                         </div>
-
-                        <button
-                            onClick={() => takePhoto(currentSide)}
-                            style={{
-                                width: '80px', height: '80px', borderRadius: '50%',
-                                background: '#fff', border: '4px solid #e5e7eb',
-                                cursor: 'pointer', boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                                transition: 'transform 0.1s'
-                            }}
-                            onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
-                            onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                        >
-                            <div style={{ width: '60px', height: '60px', background: '#ef4444', borderRadius: '50%', margin: '6px auto' }}></div>
+                        <button onClick={() => takePhoto(currentSide)} className="w-20 h-20 rounded-full bg-white border-4 border-gray-200 cursor-pointer shadow-lg active:scale-95 transition-transform">
+                            <div className="w-[60px] h-[60px] bg-red-500 rounded-full mx-auto" />
                         </button>
-                        <p style={{ marginTop: '12px', fontWeight: '500', color: '#374151' }}>กดเพื่อถ่ายภาพ</p>
+                        <p className="mt-3 font-medium text-gray-700">กดเพื่อถ่ายภาพ</p>
                     </div>
                 </div>
             );
@@ -264,48 +175,49 @@ const CameraPage = () => {
 
         if (step === 'analyzing') {
             return (
-                <div style={{ textAlign: 'center', padding: '60px' }}>
-                    <div className="spinner" style={{ width: '50px', height: '50px', border: '4px solid #f3f3f3', borderTop: '4px solid #2563eb', borderRadius: '50%', margin: '0 auto 24px', animation: 'spin 1s linear infinite' }}></div>
-                    <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-                    <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#111' }}>กำลังวิเคราะห์...</h2>
-                    <p style={{ color: '#6b7280' }}>กำลังวิเคราะห์ผลลัพธ์จากโมเดล AI...</p>
+                <div className="text-center py-16">
+                    <div className="w-12 h-12 border-4 border-gray-200 border-t-blue-600 rounded-full mx-auto mb-6 animate-spin" />
+                    <h2 className="text-2xl font-bold text-gray-900">กำลังวิเคราะห์...</h2>
+                    <p className="text-gray-500">กำลังวิเคราะห์ผลลัพธ์จากโมเดล AI...</p>
                 </div>
             );
         }
 
         if (step === 'result' && result) {
+            const levelColor = getLevelColor(result.severityLevel);
             return (
-                <div style={{ display: 'flex', gap: '32px' }}>
-                    <div style={{ flex: 1 }}>
-                        <div style={{ background: getLevelColor(result.severityLevel), borderRadius: '16px', padding: '32px', color: '#fff', marginBottom: '24px', textAlign: 'center' }}>
-                            <h2 style={{ fontSize: '48px', fontWeight: '800', margin: 0 }}>{result.severityLevel}</h2>
-                            <p style={{ fontSize: '24px', fontWeight: 'bold', margin: '8px 0 0' }}>ระดับ{result.severityLabel}</p>
+                <div className="flex flex-col lg:flex-row gap-8 animate-fadeIn">
+                    <div className="flex-1">
+                        <div className="rounded-2xl p-8 text-white mb-6 text-center" style={{ background: levelColor.hex }}>
+                            <h2 className="text-5xl font-extrabold m-0">{result.severityLevel}</h2>
+                            <p className="text-2xl font-bold mt-2">ระดับ{result.severityLabel}</p>
                         </div>
-
-
+                        {/* Spots Detail */}
+                        <div className="bg-white rounded-2xl p-6 border border-gray-200">
+                            <h3 className="text-lg font-bold text-gray-900 mb-4">รายละเอียด</h3>
+                            <div className="flex items-center justify-between p-4 bg-blue-50 rounded-xl">
+                                <span className="text-gray-700 font-medium">จำนวนจุดสิวที่พบ</span>
+                                <span className="text-3xl font-bold text-blue-600">{result.totalSpots} <span className="text-base font-normal text-gray-500">จุด</span></span>
+                            </div>
+                        </div>
                     </div>
-
-                    <div style={{ width: '320px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <h3 style={{ fontSize: '18px', fontWeight: 'bold' }}>ภาพที่ใช้</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                            {previews.front && <img src={previews.front} alt="Front" style={{ width: '100%', borderRadius: '8px' }} />}
-                            {previews.left && <img src={previews.left} alt="Left" style={{ width: '100%', borderRadius: '8px' }} />}
-                            {previews.right && <img src={previews.right} alt="Right" style={{ width: '100%', borderRadius: '8px' }} />}
+                    <div className="w-full lg:w-80 flex flex-col gap-4">
+                        <h3 className="text-lg font-bold">ภาพที่ใช้</h3>
+                        <div className="grid grid-cols-3 lg:grid-cols-2 gap-3">
+                            {previews.front && <img src={previews.front} alt="Front" className="w-full rounded-lg" />}
+                            {previews.left && <img src={previews.left} alt="Left" className="w-full rounded-lg" />}
+                            {previews.right && <img src={previews.right} alt="Right" className="w-full rounded-lg" />}
                         </div>
-
-                        <div style={{ marginTop: 'auto' }}>
-                            <button
-                                onClick={saveResult}
-                                style={{ width: '100%', padding: '16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '12px' }}
-                            >
-                                บันทึกลง Journal
+                        <div className="mt-auto flex flex-col gap-3">
+                            <button onClick={saveResult} disabled={isSaving} className={`btn-primary w-full ${isSaving ? 'opacity-70 cursor-not-allowed flex justify-center items-center gap-2' : ''}`}>
+                                {isSaving ? (
+                                    <>
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                        กำลังบันทึก...
+                                    </>
+                                ) : 'บันทึกลง Journal'}
                             </button>
-                            <button
-                                onClick={() => { setStep('intro'); setImages({}); setPreviews({}); setResult(null); }}
-                                style={{ width: '100%', padding: '16px', background: '#fff', color: '#374151', border: '1px solid #e5e7eb', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}
-                            >
-                                เริ่มใหม่
-                            </button>
+                            <button onClick={() => { setStep('intro'); setImages({}); setPreviews({}); setResult(null); }} className="btn-secondary w-full" disabled={isSaving}>เริ่มใหม่</button>
                         </div>
                     </div>
                 </div>
@@ -316,14 +228,12 @@ const CameraPage = () => {
 
     return (
         <div>
-            <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>←</button>
-                <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: 0 }}>วิเคราะห์สภาพผิว</h1>
+            <div className="mb-6 flex items-center gap-4">
+                <button onClick={() => navigate('/')} className="bg-transparent border-none text-xl cursor-pointer p-2 rounded-lg hover:bg-gray-100 transition-colors">←</button>
+                <h1 className="text-2xl sm:text-[28px] font-bold m-0">วิเคราะห์สภาพผิว</h1>
             </div>
-
             {renderContent()}
-
-            <canvas ref={canvasRef} style={{ display: 'none' }} />
+            <canvas ref={canvasRef} className="hidden" />
         </div>
     );
 };
