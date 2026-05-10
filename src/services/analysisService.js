@@ -74,8 +74,16 @@ const processResult = (data) => {
     let severityLevel = 1;
 
     if (data.predictions && data.predictions.length > 0) {
-        let maxLevel = 1;
+        // Group predictions by source and pick the one with highest confidence
+        const bestPredictions = {};
         data.predictions.forEach(pred => {
+            if (!bestPredictions[pred.source] || pred.confidence > bestPredictions[pred.source].confidence) {
+                bestPredictions[pred.source] = pred;
+            }
+        });
+
+        let maxLevel = 1;
+        Object.values(bestPredictions).forEach(pred => {
             const label = pred.class.toLowerCase();
             let level = 1;
             if (label === 'moderate') level = 2;
