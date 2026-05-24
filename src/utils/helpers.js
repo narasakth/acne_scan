@@ -53,13 +53,12 @@ export const getTrendInfo = (trend) => {
  */
 export const getLevelColor = (level) => {
     const colors = {
-        1: { bg: 'bg-green-100', text: 'text-green-800', hex: '#16a34a' },
-        2: { bg: 'bg-lime-100', text: 'text-lime-800', hex: '#84cc16' },
-        3: { bg: 'bg-yellow-100', text: 'text-yellow-800', hex: '#eab308' },
-        4: { bg: 'bg-orange-100', text: 'text-orange-800', hex: '#f97316' },
-        5: { bg: 'bg-red-100', text: 'text-red-800', hex: '#dc2626' },
+        1: { bg: 'bg-green-50 text-green-700 border border-green-200', text: 'text-green-800', hex: '#10b981' }, // Mild (เล็กน้อย)
+        2: { bg: 'bg-yellow-50 text-yellow-700 border border-yellow-200', text: 'text-yellow-800', hex: '#eab308' }, // Moderate (ปานกลาง)
+        3: { bg: 'bg-orange-50 text-orange-700 border border-orange-200', text: 'text-orange-800', hex: '#f97316' }, // Severe (รุนแรง)
+        4: { bg: 'bg-red-50 text-red-700 border border-red-200', text: 'text-red-800', hex: '#ef4444' }, // Very Severe (รุนแรงมาก)
     };
-    return colors[level] || { bg: 'bg-gray-100', text: 'text-gray-800', hex: '#6b7280' };
+    return colors[level] || { bg: 'bg-gray-50 text-gray-700 border border-gray-200', text: 'text-gray-800', hex: '#6b7280' };
 };
 
 /**
@@ -68,7 +67,8 @@ export const getLevelColor = (level) => {
  * @returns {string} Tailwind classes for the badge
  */
 export const getSeverityBadge = (level) => {
-    if (level <= 2) return 'bg-green-100 text-green-800';
-    if (level <= 3) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-red-100 text-red-800';
+    if (level === 1) return 'bg-green-100 text-green-800 border border-green-200';
+    if (level === 2) return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+    if (level === 3) return 'bg-orange-100 text-orange-800 border border-orange-200';
+    return 'bg-red-100 text-red-800 border border-red-200';
 };

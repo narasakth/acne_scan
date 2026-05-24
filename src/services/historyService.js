@@ -3,7 +3,7 @@
  * Uses localStorage instead of AsyncStorage
  */
 
-import { syncAnalysisToCloud, isSupabaseConfigured, getUserId, getUserAnalyses } from './supabaseService';
+import { syncAnalysisToCloud, isSupabaseConfigured, getUserId, getUserAnalyses, deleteCloudAnalysis, clearCloudAnalyses } from './supabaseService';
 import { supabase } from './supabaseService';
 
 const HISTORY_KEY_PREFIX = 'acnescan_history_';
@@ -184,6 +184,12 @@ export const deleteAnalysis = async (id) => {
         const filteredHistory = history.filter(item => item.id !== id);
         const historyKey = await getHistoryKey();
         localStorage.setItem(historyKey, JSON.stringify(filteredHistory));
+
+        // Delete from cloud if configured
+        if (isSupabaseConfigured()) {
+            await deleteCloudAnalysis(id);
+        }
+
         return true;
     } catch (error) {
         console.error('Error deleting analysis:', error);
@@ -198,6 +204,12 @@ export const clearHistory = async () => {
     try {
         const historyKey = await getHistoryKey();
         localStorage.removeItem(historyKey);
+
+        // Clear from cloud if configured
+        if (isSupabaseConfigured()) {
+            await clearCloudAnalyses();
+        }
+
         return true;
     } catch (error) {
         console.error('Error clearing history:', error);

@@ -27,29 +27,23 @@ export const AuthProvider = ({ children }) => {
     const [session, setSession] = useState(null);
 
     useEffect(() => {
-        // Check initial session
-        const checkSession = async () => {
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
-                setSession(session);
-                setUser(session?.user || null);
-            } catch (error) {
-                console.error('Error checking session:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        checkSession();
+        let isMounted = true;
 
         // Listen for auth changes
+        // In Supabase v2, this immediately fires the callback with event 'INITIAL_SESSION'
+        // and the current session, so we don't need a redundant getSession() call.
+        // This avoids the concurrent Web Locks deadlock in React 18 Strict Mode.
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            setSession(session);
-            setUser(session?.user || null);
-            setLoading(false);
+            if (isMounted) {
+                console.log(`Auth event: ${event}`);
+                setSession(session);
+                setUser(session?.user || null);
+                setLoading(false);
+            }
         });
 
         return () => {
+            isMounted = false;
             subscription?.unsubscribe();
         };
     }, []);

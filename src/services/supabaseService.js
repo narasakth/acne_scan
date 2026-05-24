@@ -310,6 +310,50 @@ export const getUserAnalyses = async () => {
 };
 
 /**
+ * Delete a single analysis from Supabase
+ */
+export const deleteCloudAnalysis = async (localId) => {
+    try {
+        const user = await getCurrentUser();
+        // If not logged in, we shouldn't try to delete from cloud (or we could delete by deviceId, but safer to only allow when logged in)
+        if (!user) return false;
+
+        const { error } = await supabase
+            .from('analyses')
+            .delete()
+            .eq('local_id', localId)
+            .eq('user_id', user.id); // Extra safety check to only delete their own
+
+        if (error) throw error;
+        return true;
+    } catch (error) {
+        console.error('Error deleting from Supabase:', error);
+        return false;
+    }
+};
+
+/**
+ * Clear all analyses for current user from Supabase
+ */
+export const clearCloudAnalyses = async () => {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return false;
+
+        const { error } = await supabase
+            .from('analyses')
+            .delete()
+            .eq('user_id', user.id);
+
+        if (error) throw error;
+        return true;
+    } catch (error) {
+        console.error('Error clearing Supabase history:', error);
+        return false;
+    }
+};
+
+/**
  * Check if Supabase is configured
  */
 export const isSupabaseConfigured = () => {
@@ -336,6 +380,8 @@ const supabaseService = {
     getSession,
     onAuthStateChange,
     updateUser,
+    deleteCloudAnalysis,
+    clearCloudAnalyses,
 };
 
 export default supabaseService;

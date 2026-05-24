@@ -109,7 +109,12 @@ const ProfilePage = () => {
 
     return (
         <div>
-            <h1 className="text-2xl sm:text-[28px] font-bold text-gray-900 mb-8">โปรไฟล์และการตั้งค่า</h1>
+            <div className="mb-8 flex items-center gap-4">
+                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 flex-shrink-0">
+                    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                </div>
+                <h1 className="text-2xl sm:text-[28px] font-bold text-gray-900 m-0">โปรไฟล์และการตั้งค่า</h1>
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(300px,350px)_1fr] gap-6 items-start">
                 {/* Left Column - Profile & Stats */}

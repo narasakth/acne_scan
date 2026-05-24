@@ -2,9 +2,11 @@
  * HistoryPage.jsx - History with Sidebar Layout
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getHistory, getStatistics, formatDate, deleteAnalysis } from '../services/historyService';
+import { processAllAngles, initFaceMesh, ZONES } from '../services/faceZoneService';
+import RecommendationPanel from '../components/RecommendationPanel';
 
 const HistoryPage = () => {
     const navigate = useNavigate();
@@ -14,7 +16,48 @@ const HistoryPage = () => {
     const [selectedItem, setSelectedItem] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // Zone processing state for detail modal
+    const [modalZones, setModalZones] = useState(null);
+    const [modalZoneTab, setModalZoneTab] = useState('front');
+    const [zoneLoading, setZoneLoading] = useState(false);
+
     useEffect(() => { loadData(); }, []);
+
+    // Process zones when a history item is selected
+    const processItemZones = useCallback(async (item) => {
+        if (!item) return;
+        const imageUrls = {
+            front: item.imageUrl || null,
+            left: item.leftImageUrl || null,
+            right: item.rightImageUrl || null,
+        };
+
+        // Only process if at least one image exists
+        const hasImages = Object.values(imageUrls).some(url => url);
+        if (!hasImages) return;
+
+        setZoneLoading(true);
+        setModalZones(null);
+        try {
+            await initFaceMesh();
+            const results = await processAllAngles(imageUrls);
+            setModalZones(results);
+            // Select first tab with results
+            const firstValid = ['front', 'left', 'right'].find(k => results[k]);
+            setModalZoneTab(firstValid || 'front');
+        } catch (err) {
+            console.warn('Zone processing in history failed:', err);
+        } finally {
+            setZoneLoading(false);
+        }
+    }, []);
+
+    const handleSelectItem = useCallback((item) => {
+        setSelectedItem(item);
+        setModalZones(null);
+        setModalZoneTab('front');
+        processItemZones(item);
+    }, [processItemZones]);
 
     const loadData = async () => {
         try {
@@ -91,9 +134,24 @@ const HistoryPage = () => {
         <div>
             {/* Header */}
             <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                    <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#111', margin: 0 }}>ประวัติการวิเคราะห์</h1>
-                    <p style={{ color: '#6b7280', marginTop: '8px', fontSize: '15px' }}>ดูและจัดการผลการวิเคราะห์ทั้งหมด</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '12px',
+                        background: '#eff6ff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#2563eb',
+                        flexShrink: 0
+                    }}>
+                        <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <div>
+                        <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#111', margin: 0 }}>ประวัติการวิเคราะห์</h1>
+                        <p style={{ color: '#6b7280', marginTop: '8px', fontSize: '15px' }}>ดูและจัดการผลการวิเคราะห์ทั้งหมด</p>
+                    </div>
                 </div>
                 <button
                     onClick={() => navigate('/camera')}
@@ -160,7 +218,7 @@ const HistoryPage = () => {
                             {filtered.map((item, i) => (
                                 <tr
                                     key={item.id}
-                                    onClick={() => setSelectedItem(item)}
+                                    onClick={() => handleSelectItem(item)}
                                     style={{
                                         borderBottom: i < filtered.length - 1 ? '1px solid #f3f4f6' : 'none',
                                         cursor: 'pointer',
@@ -172,8 +230,8 @@ const HistoryPage = () => {
                                     <td style={{ padding: '24px 0' }}>
                                         <span style={{
                                             display: 'inline-block',
-                                            background: item.severityLevel <= 2 ? '#dcfce7' : item.severityLevel <= 3 ? '#fef3c7' : '#fee2e2',
-                                            color: item.severityLevel <= 2 ? '#166534' : item.severityLevel <= 3 ? '#92400e' : '#991b1b',
+                                            background: item.severityLevel === 1 ? '#dcfce7' : item.severityLevel === 2 ? '#fef3c7' : item.severityLevel === 3 ? '#ffedd5' : '#fee2e2',
+                                            color: item.severityLevel === 1 ? '#15803d' : item.severityLevel === 2 ? '#b45309' : item.severityLevel === 3 ? '#c2410c' : '#b91c1c',
                                             padding: '6px 16px',
                                             borderRadius: '20px',
                                             fontSize: '14px',
@@ -227,8 +285,8 @@ const HistoryPage = () => {
 
                             <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
                                 <span style={{
-                                    background: selectedItem.severityLevel <= 2 ? '#dcfce7' : selectedItem.severityLevel <= 3 ? '#fef3c7' : '#fee2e2',
-                                    color: selectedItem.severityLevel <= 2 ? '#166534' : selectedItem.severityLevel <= 3 ? '#92400e' : '#991b1b',
+                                    background: selectedItem.severityLevel === 1 ? '#dcfce7' : selectedItem.severityLevel === 2 ? '#fef3c7' : selectedItem.severityLevel === 3 ? '#ffedd5' : '#fee2e2',
+                                    color: selectedItem.severityLevel === 1 ? '#15803d' : selectedItem.severityLevel === 2 ? '#b45309' : selectedItem.severityLevel === 3 ? '#c2410c' : '#b91c1c',
                                     padding: '6px 16px', borderRadius: '20px', fontSize: '14px', fontWeight: '700'
                                 }}>
                                     ระดับ {selectedItem.severityLevel}
@@ -240,7 +298,7 @@ const HistoryPage = () => {
                             </div>
 
                             {/* Images Grid */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '32px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '24px' }}>
                                 {[
                                     { src: selectedItem.imageUrl, label: 'หน้าตรง' },
                                     { src: selectedItem.leftImageUrl, label: 'ด้านซ้าย' },
@@ -263,7 +321,82 @@ const HistoryPage = () => {
                                 ))}
                             </div>
 
-                            {/* Details Stats */}
+                            {/* Zone Analysis Section */}
+                            <div style={{
+                                borderTop: '1px solid #e5e7eb',
+                                paddingTop: '24px',
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                    <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0, color: '#111' }}>โซนใบหน้า</h3>
+                                    <div className="zone-legend">
+                                        {ZONES.map(z => (
+                                            <span key={z.key} className="zone-chip">
+                                                <span className="zone-chip-dot" style={{ background: z.stroke }} />
+                                                {z.label}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {zoneLoading ? (
+                                    <div style={{ textAlign: 'center', padding: '32px', color: '#6b7280' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '12px' }}>
+                                            <div className="zone-processing-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6' }} />
+                                            <div className="zone-processing-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6' }} />
+                                            <div className="zone-processing-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6' }} />
+                                        </div>
+                                        <p style={{ fontSize: '14px', margin: 0 }}>กำลังวิเคราะห์โซนใบหน้า...</p>
+                                    </div>
+                                ) : modalZones ? (
+                                    <>
+                                        {/* Tab bar */}
+                                        <div className="zone-tabs" style={{ marginBottom: '16px' }}>
+                                            {[{ key: 'front', label: 'หน้าตรง' }, { key: 'left', label: 'ด้านซ้าย' }, { key: 'right', label: 'ด้านขวา' }].map(tab => (
+                                                <button
+                                                    key={tab.key}
+                                                    onClick={() => setModalZoneTab(tab.key)}
+                                                    className={`zone-tab ${modalZoneTab === tab.key ? 'active' : ''}`}
+                                                    disabled={!modalZones[tab.key]}
+                                                >
+                                                    {tab.label}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* Zone cards grid */}
+                                        {modalZones[modalZoneTab] ? (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
+                                                {modalZones[modalZoneTab].zones.map(zone => (
+                                                    <div key={zone.key} className="zone-card">
+                                                        <img
+                                                            src={zone.dataUrl}
+                                                            alt={zone.label}
+                                                            className="zone-card-image"
+                                                        />
+                                                        <div className="zone-card-label" style={{ padding: '8px 12px', fontSize: '12px' }}>
+                                                            <span className="zone-card-dot" style={{ background: zone.color, width: '8px', height: '8px' }} />
+                                                            {zone.label}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div style={{ textAlign: 'center', padding: '24px', color: '#9ca3af', fontSize: '14px' }}>
+                                                ไม่พบใบหน้าในภาพนี้
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div style={{ textAlign: 'center', padding: '24px', color: '#9ca3af', fontSize: '14px' }}>
+                                        ไม่มีข้อมูลภาพสำหรับวิเคราะห์โซน
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Treatment Recommendations */}
+                            <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '24px' }}>
+                                <RecommendationPanel severityLevel={selectedItem.severityLevel} />
+                            </div>
 
                         </div>
                     </div>
